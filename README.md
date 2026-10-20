@@ -50,6 +50,6 @@ Buildings: 3D building models LoD2 © GDI-Th (dl-de/by-2-0). Land use and pedest
 ## How this was made
 
 1. Tools: Claude Code, with the model Claude Opus 5.5 (`claude-opus-5-5`).
-2. I decided:
+2. I decided: to add an axis generator that creates a boulevard between two selected buildings and pushes any buildings in its path out of the way, without checking where they end up. I also wanted an Arc de Triomphe at the axis’s midpoint and all buildings styled like Haussmann buildings, with white facades and dark grey roofs.
 3. The agent did: it read the data kit, then wrote and tested the walking, band and resident calculation and the React Three Fiber map with its panel, legend and attribution, checking the result in a headless browser.
-4. I checked:
+4. I checked: that the axis generates between any two buildings I selected, that blocking buildings move, that the Arc sits at the midpoint, and that the colours apply. I did not independently verify the resident numbers.
