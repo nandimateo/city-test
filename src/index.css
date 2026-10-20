@@ -1,0 +1,17 @@
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #f6f4ef;
+  color: #1c1c1c;
+}
+
+main {
+  max-width: 36rem;
+  margin: 20vh auto 0;
+  padding: 0 1rem;
+  line-height: 1.5;
+}
+
+.error {
+  color: #b42318;
+}
