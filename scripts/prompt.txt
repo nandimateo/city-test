@@ -1,0 +1,13 @@
+Turn this view of a 3D massing model into a photorealistic architectural photograph of the same scene.
+
+Keep the camera, the perspective and every building exactly as they are. Do not add, remove, move or reshape anything.
+
+What the colours in the model are:
+- [colour]: [material], for example orange: red brick facade
+- [colour]: [material]
+- [colour]: [material]
+- [any stand-in shape]: [what it really is]
+
+Light: [time of day, weather, season].
+
+A few people for scale. Vertical lines stay vertical.

@@ -1,0 +1,27 @@
+Render this image. Do not redesign it.
+
+The input is an axonometric view (parallel projection, seen from above) of a 3D massing model of the old town of Weimar, Germany. Turn it into a photorealistic aerial architectural image by adding materials, windows, light and texture to the shapes that are already there.
+
+STRICT RULES - follow every one:
+1. Same camera: identical parallel projection, angle and framing. Do not switch to perspective, do not zoom, crop, rotate or change the viewing angle.
+2. Same geometry: every building keeps its exact footprint, outline, silhouette, proportions, height and position. Every edge and corner stays where it is in the input. If you laid the result over the input, all building edges would line up.
+3. Do not add, remove, move, merge, split or reshape any building. Do not add roofs, storeys, towers or extensions that are not in the input. Flat tops stay flat.
+4. Only add surface detail inside the existing faces: facade and roof materials, window openings, texture, planting, light and shadow.
+
+WHICH BUILDING IS NEW - this is essential:
+- RED marks the ONE new building and only that: the long red structure of six red blocks in the middle of the image, with the light red links between them, the dark red edge on top and the small deep red boxes on its roof.
+- GREY marks EXISTING buildings. Every grey building is an old existing building (Bestand) and must look old. Never render a grey building as new or modern.
+- Red and grey are code colours only. Do not paint anything red.
+
+What each colour becomes:
+- grey buildings: historic Weimar Altbau from the 19th century: plastered facades in soft warm tones (cream, ochre, pale yellow, light grey), stone window surrounds, cornices and invented rows of tall vertical windows; their roof surfaces in weathered red-brown tiles or grey slate, keeping the exact shape of the model.
+- red blocks: the new contemporary building, raised on columns above the street: light exposed concrete with large floor-to-ceiling windows in slim dark frames.
+- light red links between the red blocks: glazed bridges that join the six blocks into one structure.
+- green surface on top of the red blocks: the roof garden, the only one in the scene: timber paths, lawn, planting beds, small trees, benches and a few people, running continuously over all six blocks and the bridges.
+- dark red edge around it: a slim metal parapet.
+- deep red boxes on the roof: small rooftop pavilions of warm timber and glass, landmarks in the roof garden.
+- grey ground: streets, squares and courtyards with some street trees, kept low so they cover no building edges.
+
+Light: bright, warm summer afternoon, soft golden sunlight with gentle shadows, clear sky.
+
+Vertical lines stay vertical.

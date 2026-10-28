@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import CityScene from './CityScene.jsx'
-import {
-  prepareKit,
-  findStart,
-  computeReach,
-  linkNetwork,
-  moveFootprints,
-  MINUTES,
-  SPEED_M_PER_MIN,
-  BAND_M,
-  MAX_SNAP_M,
-} from './reach.js'
-import { makeAxis, planAxis, cutStreets, AXIS_WIDTH_M, CORRIDOR_MARGIN_M, PLACE_RADIUS_M, MIN_SPACING_M } from './axis.js'
-import { WALL, ROOF, GILT, REACH_COLORS, BOULEVARD } from './palette.js'
+import CouncilPanel, { CouncilControl } from './CouncilPanel.jsx'
+import { prepareKit, findStart, computeReach, MINUTES, SPEED_M_PER_MIN, BAND_M, MAX_SNAP_M } from './reach.js'
+import { estimateResidents, PLANNERS, WIDTHS_M, SPEED_KMH, OLD_TOWN_KMH } from './council.js'
+import { useCouncil } from './useCouncil.js'
+import { WALL, ROOF, GILT, REACH_COLORS, ROUTE, RUBBLE, MONUMENT, PLANNER_COLORS } from './palette.js'
 
 const ATTRIBUTION =
   'Buildings: 3D building models LoD2 © GDI-Th (dl-de/by-2-0). Land use and pedestrian network: Egor Gaydukov, InfAU, Bauhaus-Universität Weimar. Census grid: Zensus 2022, © Statistische Ämter des Bundes und der Länder (dl-de/by-2-0).'
@@ -28,166 +20,91 @@ async function loadJson(name) {
 export default function App() {
   const [kit, setKit] = useState(null)
   const [base, setBase] = useState(null) // the city as loaded; the 3D buildings are built from it
-  const [prep, setPrep] = useState(null) // the city as it is now, after the axis
+  const [prep, setPrep] = useState(null) // the city as it is now, after the council's rounds
+  const [residents, setResidents] = useState(null) // estimated residents per building
   const [error, setError] = useState(null)
-  const [start, setStart] = useState(null)
-  const [result, setResult] = useState(null)
+  const [startId, setStartId] = useState(null)
   const [message, setMessage] = useState(null)
-
-  const [offsets, setOffsets] = useState(null) // how far each building has moved: dx, dy
-  const [axis, setAxis] = useState(null)
-  const [axisStep, setAxisStep] = useState(null) // null, 'first' or 'second'
-  const [selected, setSelected] = useState([])
-  const [axisNote, setAxisNote] = useState(null)
+  const [cityKey, setCityKey] = useState(0) // a new key rebuilds the 3D city from scratch
 
   useEffect(() => {
     Promise.all(['kit.json', 'buildings.geojson', 'streets.graph.json', 'zensus.geojson'].map(loadJson))
       .then(([kit, buildings, graph, zensus]) => {
-        const p = prepareKit({ kit, buildings, graph, zensus })
+        const p = { ...prepareKit({ kit, buildings, graph, zensus }), removed: new Set() }
         setKit(kit)
         setBase(p)
         setPrep(p)
-        setOffsets(new Float64Array(2 * p.footprints.length))
+        setResidents(estimateResidents(p))
       })
       .catch((e) => setError(e.message))
   }, [])
 
-  const cancelAxis = useCallback(() => {
-    setAxisStep(null)
-    setSelected([])
-    setAxisNote(null)
-  }, [])
+  const council = useCouncil({ prep, setPrep, residents })
 
-  const toggleAxis = () => {
-    if (axisStep) return cancelAxis()
-    setAxisStep('first')
-    setSelected([])
-    setAxisNote(null)
-  }
-
-  // Esc leaves the selection at any step.
-  useEffect(() => {
-    if (!axisStep) return
-    const onKey = (e) => {
-      if (e.key === 'Escape') cancelAxis()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [axisStep, cancelAxis])
-
-  // Cut the boulevard from the centre of building i to the centre of building j.
-  // A new axis replaces the last one: the city starts again from how it was loaded.
-  const createAxis = (i, j) => {
-    const boxes = base.footprints.map((f) => f.bbox)
-    const centre = (k) => [(boxes[k][0] + boxes[k][2]) / 2, (boxes[k][1] + boxes[k][3]) / 2]
-    const a = centre(i)
-    const b = centre(j)
-    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 1) {
-      setSelected([i])
-      setAxisStep('second')
-      setAxisNote('These two buildings share a centre. Select another second building.')
-      return
-    }
-    const next = makeAxis(a, b, [i, j])
-    const plan = planAxis({ original: boxes, axis: next })
-    const net = cutStreets(base.nodes, base.edges, next, 'axis')
-    const walkableNodes = linkNetwork(net.nodes, net.edges)
-    setPrep({ ...base, nodes: net.nodes, edges: net.edges, walkableNodes, footprints: moveFootprints(base.footprints, plan.offsets) })
-    setOffsets(plan.offsets)
-    setAxis(next)
-    setAxisStep(null)
-    setStart(null)
-    setResult(null)
+  // Back to the city as it was loaded: every building standing, no routes,
+  // no monuments, and the council starting again from round 1.
+  const { restart } = council
+  const restartCity = useCallback(() => {
+    restart()
+    setPrep(base)
+    setStartId(null)
     setMessage(null)
-    const problems = plan.inCorridor + plan.tooClose
-    setAxisNote(
-      `Boulevard of ${fmt(Math.round(next.length))} m cut. ${fmt(plan.moved)} buildings moved aside.` +
-        (problems
-          ? ` ${fmt(plan.tooClose)} pairs are still too close and ${fmt(plan.inCorridor)} buildings still stand in the corridor; the pushing stopped after ${fmt(plan.iterations)} rounds.`
-          : ''),
-    )
-  }
+    setCityKey((k) => k + 1)
+  }, [restart, base])
 
-  const onPick = (xy, building) => {
-    if (!prep) return
-
-    if (axisStep) {
-      if (building == null) {
-        setAxisNote('That was the ground. Click on a building.')
-        return
-      }
-      if (axisStep === 'first') {
-        setSelected([building])
-        setAxisStep('second')
-        setAxisNote(null)
-        return
-      }
-      if (building === selected[0]) {
-        setAxisNote('That is the first building again. Select a different one.')
-        return
-      }
-      setSelected([selected[0], building])
-      createAxis(selected[0], building)
-      return
-    }
-
-    setSelected([])
-    setAxisNote(null)
-    const s = findStart(prep, xy)
-    if (!s.ok) {
-      setStart(null)
-      setResult(null)
-      setMessage(
-        `No walkable street within ${MAX_SNAP_M} m of this point (the nearest is ${fmt(Math.round(s.nearestStreet))} m away). Click closer to a street.`,
-      )
-      return
-    }
-    const reach = computeReach(prep, s.node.id)
+  // The walking reach follows the city as the council changes it.
+  const result = useMemo(() => {
+    if (!prep || startId == null || !prep.nodes.has(startId)) return null
+    const reach = computeReach(prep, startId)
     // Each building takes the shade of the nearest area it touches.
     const levels = new Array(prep.footprints.length).fill(null)
     for (let level = reach.areas.length - 1; level >= 0; level--) {
       for (const i of reach.areas[level].buildings) levels[i] = level
     }
-    setStart(s.node)
-    setResult({ ...reach, levels })
+    return { ...reach, levels, start: prep.nodes.get(startId) }
+  }, [prep, startId])
+
+  const onPick = (xy) => {
+    if (!prep) return
+    const s = findStart(prep, xy)
+    if (!s.ok) {
+      setStartId(null)
+      setMessage(
+        `No walkable street within ${MAX_SNAP_M} m of this point (the nearest is ${fmt(Math.round(s.nearestStreet))} m away). Click closer to a street.`,
+      )
+      return
+    }
+    setStartId(s.node.id)
     setMessage(null)
   }
-
-  const instruction = { first: 'Select the first building.', second: 'Select the second building.' }[axisStep]
 
   return (
     <div className="app">
       {base && kit && (
         <CityScene
+          key={cityKey}
           footprints={base.footprints}
           edges={prep.edges}
           sizeM={kit.size_m}
-          offsets={offsets}
-          axis={axis}
-          selected={selected}
+          removed={prep.removed}
+          routes={council.routes}
+          live={council.live}
           result={result}
-          start={start}
           onPick={onPick}
         />
       )}
 
       <header className="title">Haussmann’s Renovation of Weimar</header>
 
-      <div className="axis-control">
-        {instruction && <p className="instruction">{instruction}</p>}
-        {axisNote && <p className="note">{axisNote}</p>}
-        <button type="button" className={axisStep ? 'axis-button active' : 'axis-button'} onClick={toggleAxis} disabled={!prep}>
-          {axisStep ? 'Cancel' : 'Create an Axis'}
-        </button>
-        {axisStep && <p className="hint">Press Esc or the button to cancel.</p>}
-      </div>
+      <CouncilControl council={council} onRestart={restartCity} />
+      <CouncilPanel council={council} />
 
       <aside className="panel">
         <h1>Walking reach</h1>
         {error && <p className="error">The city kit didn't load ({error}).</p>}
         {!prep && !error && <p className="hint">Loading the city kit…</p>}
         {prep && !result && !message && (
-          <p className="hint">Click anywhere on the ground to see how far you can walk from there.</p>
+          <p className="hint">Click anywhere on the ground to see how far you can walk from there, on the streets as the council leaves them.</p>
         )}
         {message && <p className="error">{message}</p>}
 
@@ -226,12 +143,56 @@ export default function App() {
           </table>
         )}
 
+        {prep && (
+          <>
+            <h2 className="key">Map key</h2>
+            <ul className="key-list">
+              <li>
+                <span className="swatch" style={{ background: WALL }} />
+                limestone walls
+              </li>
+              <li>
+                <span className="swatch" style={{ background: ROOF }} />
+                zinc roofs
+              </li>
+              <li>
+                <span className="swatch" style={{ background: GILT }} />
+                the resident’s home and destination
+              </li>
+              {PLANNERS.map((p) => (
+                <li key={p.id}>
+                  <span className="swatch" style={{ background: PLANNER_COLORS[p.id] }} />
+                  {p.name}’s design and what it would demolish
+                </li>
+              ))}
+              <li>
+                <span className="swatch" style={{ background: ROUTE }} />
+                a route the council built
+              </li>
+              <li>
+                <span className="swatch" style={{ background: MONUMENT }} />
+                a triumphal arch or victory column in the middle of each route
+              </li>
+              <li>
+                <span className="swatch" style={{ background: RUBBLE }} />
+                demolished
+              </li>
+              {MINUTES.map((m, level) => (
+                <li key={m}>
+                  <span className="swatch" style={{ background: REACH_COLORS[level] }} />
+                  within {m} minutes on foot
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
         <details className="method">
           <summary>How it works</summary>
           <p>
             Walking at 4.8 km/h ({SPEED_M_PER_MIN} m per minute) along the pedestrian network, starting from the street
             junction nearest to your click. Each area is the streets reached in that time, with a band of {BAND_M} m on
-            each side. A building counts when it touches the area.
+            each side. A building counts when it touches the area; demolished buildings don't.
           </p>
           <p>
             Residents come from the Zensus 2022 100 m grid: each cell adds its population times the share of the cell
@@ -239,48 +200,19 @@ export default function App() {
             sum, not counted as zero; their number is shown next to it.
           </p>
           <p>
-            A boulevard is {AXIS_WIDTH_M} m wide, with a round place of {PLACE_RADIUS_M} m radius and a triumphal arch
-            in its middle, and {CORRIDOR_MARGIN_M} m kept clear around both. Buildings in the way move straight out
-            from the boulevard, never turning, and push their neighbours outward until every pair is at least{' '}
-            {MIN_SPACING_M} m apart, or as close as it already was. Streets that cross it end at it, and you can walk
-            along it. A new axis replaces the last one.
+            The council: a random resident is offered up to eight non-residential buildings 300 to 1,200 m away, the
+            worst detours by street first, and picks one. The app works out three kinds of route in {WIDTHS_M.join(', ')} m:
+            a straight cut, the existing streets widened, and a two-leg route bent to spare the most buildings. Every
+            building within half the width of the route is demolished, except the two ends. Trips are timed by car at{' '}
+            {OLD_TOWN_KMH} km/h through the old streets and {WIDTHS_M.map((w) => `${SPEED_KMH[w]}`).join(' / ')} km/h on a new
+            route of that width. Displaced residents share each census cell's population over its houses by volume. Each
+            planner picks a width and pitches it; the people vote, or reject all three. A built route gets a monument in its
+            middle: a triumphal arch from 20 m wide, a victory column on a narrower one. Claude (Haiku) speaks for every
+            voice through <code>claude -p</code> on this laptop, choosing only from the options the app lists.
           </p>
         </details>
         <p className="hint small">Drag to orbit, right-drag to pan, scroll to zoom.</p>
       </aside>
-
-      {prep && (
-        <aside className="legend">
-          <h2>The city</h2>
-          <ul>
-            <li>
-              <span className="swatch" style={{ background: WALL }} />
-              limestone walls
-            </li>
-            <li>
-              <span className="swatch" style={{ background: ROOF }} />
-              zinc roofs
-            </li>
-            <li>
-              <span className="swatch" style={{ background: BOULEVARD }} />
-              boulevard
-            </li>
-            <li>
-              <span className="swatch" style={{ background: GILT }} />
-              chosen buildings
-            </li>
-          </ul>
-          <h2>Reached on foot</h2>
-          <ul>
-            {MINUTES.map((m, level) => (
-              <li key={m}>
-                <span className="swatch" style={{ background: REACH_COLORS[level] }} />
-                within {m} minutes
-              </li>
-            ))}
-          </ul>
-        </aside>
-      )}
 
       <footer className="attribution">{ATTRIBUTION}</footer>
     </div>

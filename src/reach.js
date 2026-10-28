@@ -21,7 +21,7 @@ export function makeProjection([lon0, lat0]) {
 
 // --- small geometry helpers --------------------------------------------
 
-function distToSegment(px, py, ax, ay, bx, by) {
+export function distToSegment(px, py, ax, ay, bx, by) {
   const dx = bx - ax
   const dy = by - ay
   const L2 = dx * dx + dy * dy
@@ -39,7 +39,7 @@ function segmentsCross(a, b, c, d) {
   return d1 * d2 < 0 && d3 * d4 < 0
 }
 
-function pointInRings(x, y, rings) {
+export function pointInRings(x, y, rings) {
   let inside = false
   for (const ring of rings) {
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -52,7 +52,7 @@ function pointInRings(x, y, rings) {
 }
 
 // Shortest distance between a footprint (rings) and a straight segment a–b.
-function distFootprintToSegment(rings, a, b) {
+export function distFootprintToSegment(rings, a, b) {
   if (pointInRings(a[0], a[1], rings)) return 0
   let best = Infinity
   for (const ring of rings) {
@@ -84,7 +84,7 @@ function bboxOf(rings) {
   return [minX, minY, maxX, maxY]
 }
 
-function ringArea(ring) {
+export function ringArea(ring) {
   let a = 0
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1])
@@ -157,21 +157,6 @@ export function linkNetwork(nodes, edges) {
   return [...nodes.values()].filter((n) => n.adj.length > 0)
 }
 
-// The footprints moved by their offsets (dx, dy per building), without turning them.
-export function moveFootprints(footprints, offsets) {
-  return footprints.map((f, i) => {
-    const dx = offsets[2 * i]
-    const dy = offsets[2 * i + 1]
-    if (!dx && !dy) return f
-    const [x0, y0, x1, y1] = f.bbox
-    return {
-      ...f,
-      rings: f.rings.map((r) => r.map(([x, y]) => [x + dx, y + dy])),
-      bbox: [x0 + dx, y0 + dy, x1 + dx, y1 + dy],
-    }
-  })
-}
-
 // --- starting point -----------------------------------------------------
 
 export function findStart(prep, [x, y]) {
@@ -195,7 +180,7 @@ export function findStart(prep, [x, y]) {
 
 // --- walking: Dijkstra over edge lengths --------------------------------
 
-function walk(prep, startId, maxDist) {
+export function walk(prep, startId, maxDist) {
   const dist = new Map([[startId, 0]])
   const heap = [[0, startId]]
   const push = (item) => {
@@ -336,9 +321,10 @@ export function computeReach(prep, startId) {
     const near = (bb) => bb[2] >= minX && bb[0] <= maxX && bb[3] >= minY && bb[1] <= maxY
 
     // A building touches the area when it comes within 25 m of a reached piece.
+    // Buildings the council has demolished no longer count.
     const buildings = new Set()
     prep.footprints.forEach((f, i) => {
-      if (!near(f.bbox)) return
+      if (prep.removed?.has(i) || !near(f.bbox)) return
       for (const [a, b] of pieces) {
         // quick reject on the piece's own box
         if (

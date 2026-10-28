@@ -1,38 +1,82 @@
-# Walking reach in central Weimar
+# Haussmann's Renovation of Weimar
 
-A 3D map of central Weimar that shows how far you can walk in 5, 10 and 15 minutes from any point, how many buildings that reaches, and about how many people live there.
+A 3D map of central Weimar where a council keeps rebuilding the city by itself. Every round, a resident asks for a shorter route from their home to a building they need. Three urban planners each design that route. The people vote, and the winning design is built: the buildings in its way are demolished. Then the next round begins.
 
-Buildings stand at their measured height and are coloured by their main use. Click on the ground (or on a roof) and the app walks the pedestrian network from the nearest junction. It draws three nested areas in shades of orange, highlights the buildings that touch each area in the same shade, and lists the counts in a panel.
+You can also click on the ground to see how far you can walk in 5, 10 and 15 minutes from any point, on the streets as the council leaves them.
+
+## The idea
+
+- **What it notices:** the city as it is now. That means which buildings still stand, their use and height, about how many people live in each (from the census), and how much longer a trip is by street than in a straight line. It also notices what the council decided in earlier rounds: what was demolished and how the votes went.
+- **When it thinks:** by itself. A round starts 10 seconds after the last one ended, until you press Pause.
+- **What it does:** a resident picks a destination and complains about the detour. Each planner picks one design and pitches it. The people vote for one design or reject all three. The app then demolishes the winning design's buildings and lays the new route. You can't undo it; only reloading the page brings the city back.
 
 ## Run it
 
 ```
 npm install     install the packages
-npm run dev     start the app at http://localhost:5173
+npm run dev     start the app at http://localhost:5173, with the council
 npm run build   build the site into dist/, as GitHub Pages does
 ```
 
-On every push to `main`, GitHub Pages publishes the app at `https://<user>.github.io/<repo>/` through `.github/workflows/deploy.yml`.
+The council needs Claude Code on your laptop, signed in. The app calls it with `claude -p`, so it uses your own Claude account and needs no key.
 
-Mouse: drag to orbit, right-drag to pan, scroll to zoom. A short click without dragging picks a starting point.
+On every push to `main`, GitHub Pages publishes the app at `https://<user>.github.io/<repo>/` through `.github/workflows/deploy.yml`. **The council only thinks on localhost.** The live page shows a note instead, and the walking reach works as before.
+
+Mouse: drag to orbit, right-drag to pan, scroll to zoom. A short click without dragging picks a starting point for the walking reach. The camera glides to each new round on its own; you can orbit away at any time.
+
+## How the council thinks
+
+The app works out the facts. Claude only chooses between options the app lists, and gives a reason with every choice.
+
+1. **The resident.** The app picks a random residential building that still stands and where someone lives. It offers up to eight non-residential buildings 300 to 1,200 m away in a straight line, the worst detours by street first, at most two of each use. Claude, speaking as the resident, picks one, invents a name and an age, and writes a complaint.
+2. **The planners.** For three kinds of route in three widths (12, 20 and 32 m), the app works out the buildings the route would demolish, the homes and public buildings among them, the residents displaced, and how long the trip takes before and after. Each planner owns one kind of route and only chooses its width, a title and a pitch:
+   - **The Prefect** cuts straight from door to door.
+   - **The Engineer** widens the existing streets.
+   - **The Conservator** bends the route around the bend point that demolishes the fewest buildings.
+
+   All three think at the same time, and their designs are drawn on the map in their colours, with the buildings each would demolish.
+3. **The vote.** Claude, speaking as the people of Weimar, sees the complaint, the three designs with their numbers and pitches, and the last rounds. It votes for one design or for none of them, gives the shares in percent and reports why.
+4. **Building it.** The winner's buildings go one after another along the route, starting at the resident's home: a flash, a cloud of dust and flying debris, and the building collapses to rubble. A new route joins the walking network between the junctions nearest the two buildings; widened streets keep their network.
+
+The log on the right shows every step: what the app noticed, what each voice decided and why, the vote, and what came down.
+
+**What goes to Claude, and how often.** One round is five calls: the resident, three planners at once, and the vote. Each call sends only plain data: uses, heights, distances, minutes, counts, the earlier answers and a summary of the last four rounds. Each call takes about 4–7 seconds, so a round takes about 15–20 seconds of thinking. With a 10-second rest, a new round starts about every 30 seconds: roughly ten calls a minute while the council runs, and none while it's paused.
+
+**How it is connected.** `server/council.js` adds an endpoint, `POST /api/council`, to the Vite dev server. It runs:
+
+```
+claude -p <prompt> --safe-mode --tools "" --model haiku --effort low --output-format json --no-session-persistence --system-prompt <voice> --json-schema <choices>
+```
+
+- `--tools ""` gives Claude no tools, so nothing sent from the page can make it read files or run commands.
+- `--safe-mode` leaves out this project's settings, so an answer comes fast.
+- The schema lists only the ids, widths and planners the app offered, so every answer can be carried out.
+
+The voices' system prompts live in that file. They are the design: change them, and the city changes.
 
 ## Method
 
-- **Start.** The app takes the street junction or dead end of the pedestrian network nearest to your click. If no walkable street is within 100 m, it says so and draws nothing. The walk from your click to that junction isn't counted.
-- **Walking.** It follows the walkable edges of `streets.graph.json` by their `length` in metres at 4.8 km/h, which is 80 m per minute: 400 m in 5 minutes, 800 m in 10 and 1,200 m in 15. Streets can be walked both ways.
-- **Areas.** Each area is the set of street segments reached in that time, including the reachable part of the last segment, with a band of 25 m on each side, joined into one shape. It isn't a circle or a convex hull, so courtyards and blocks far from any reached street stay out.
-- **Buildings.** A building counts when its footprint touches the area, meaning it comes within 25 m of a reached street. Each building gets the shade of the nearest area it touches.
-- **Residents.** Every Zensus 2022 100 m cell that overlaps the area adds its population times the share of the cell's area that lies inside. The total is rounded to the nearest 10.
-- **Cells without a figure.** Cells whose `population` is `null` have no published resident count. They aren't treated as zero: they are left out of the sum, and the panel shows how many of them overlap the area.
+- **Residents per building.** Each Zensus 2022 cell's population is shared over the residential buildings whose centre lies in the cell, by volume (footprint × height). Cells without a figure give nobody.
+- **Demolished buildings.** These are all standing buildings that come within half the route's width of its centre line, except the resident's home and the destination.
+- **Trip times.** Trips are timed by car: 15 km/h through the old streets today, and 25, 35 or 50 km/h on a new route 12, 20 or 32 m wide. Widened streets keep their length but get the faster speed.
+- **The walking reach.** It follows the walkable edges of `streets.graph.json` (plus the council's new routes) at 4.8 km/h, which is 80 m per minute, from the junction nearest your click.
+  - Each area is the street segments reached in 5, 10 or 15 minutes, including the reachable part of the last segment, with a band of 25 m on each side, joined into one shape.
+  - A building counts when it touches the area; demolished buildings don't.
+  - Residents are each overlapping census cell's population times the share of the cell inside the area, rounded to the nearest 10. Cells without a published figure are left out, not counted as zero; the panel shows how many overlap.
 
 ## Limits
 
-- Walking speed is one fixed 4.8 km/h for everyone. Slopes, steps, crossings and waiting at traffic lights aren't included.
-- The 25 m band is a simple stand-in for "the buildings along a street". A tall building set back more than 25 m from every reached street isn't counted, even if its entrance is close.
-- The resident count assumes people are spread evenly across each 100 m cell, which they aren't: they live in the buildings. The census also changes small counts slightly at random to protect privacy. Read the figure as an estimate, which is why it's rounded to 10.
-- Cells without a published figure are left out, so the true number may be somewhat higher where such cells overlap.
-- The data covers only the kit area, about 1.3 × 2 km. Near its edges the network stops, and areas end at the border.
-- One building (id 17520) has no `use` in the data. It's drawn in near-white as "no use given".
+- The voices are a small, fast model (Haiku), speaking in character. They read the numbers well, but they're not a real public. The people are written to be impatient with detours: they back the design that saves the most time, accept demolition when the gain is real, and only prefer fewer displaced residents when two designs save about the same time. The Prefect and the Engineer lean wide; the Conservator is the voice of caution.
+- **Displaced residents** are an estimate: the census changes small counts at random, and people are shared over buildings by volume, not counted per house.
+  - About 4,400 of the census's 21,781 residents live in cells without a residential building centre and aren't assigned to any building.
+  - The data calls some sheds and garages "residential"; a resident is only picked from buildings with at least one estimated resident.
+- **The routes** are lines with a fixed width. They ignore slopes, junction design and traffic lights. A new route only joins the network at its two ends, not where it crosses other streets.
+- **Car speeds** are rough, fixed assumptions.
+- **The walking reach** uses one speed for everyone. Its 25 m band stands in for "the buildings along a street".
+- **The data** covers only the kit area, about 1.3 × 2 km. Near its edges the network stops.
+- **The city resets** when the page is reloaded; nothing is saved.
+
+The earlier version, with a manual "Create an Axis" button that pushed buildings aside, is kept in git under the tag `axis-version`.
 
 ## Data sources
 
@@ -49,7 +93,13 @@ Buildings: 3D building models LoD2 © GDI-Th (dl-de/by-2-0). Land use and pedest
 
 ## How this was made
 
-1. Tools: Claude Code, with the model Claude Opus 5.5 (`claude-opus-5-5`).
+1. Tools: Claude Code, with the model Claude Opus 5.5 (`claude-opus-5-5`); the council's voices are Claude Haiku through `claude -p`.
+2. I decided:
+3. The agent did: it built the council (the facts in `src/council.js`, the loop, the log panel and the local `claude -p` endpoint), replaced the axis with it, and tested whole rounds on the real data and in a headless browser.
+4. I checked:
+
+### The earlier version (tag `axis-version`)
+
 2. I decided: to add an axis generator that creates a boulevard between two selected buildings and pushes any buildings in its path out of the way, without checking where they end up. I also wanted an Arc de Triomphe at the axis’s midpoint and all buildings styled like Haussmann buildings, with white facades and dark grey roofs.
-3. The agent did: it read the data kit, then wrote and tested the walking, band and resident calculation and the React Three Fiber map with its panel, legend and attribution, checking the result in a headless browser.
+
 4. I checked: that the axis generates between any two buildings I selected, that blocking buildings move, that the Arc sits at the midpoint, and that the colours apply. I did not independently verify the resident numbers.

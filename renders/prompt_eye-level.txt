@@ -1,0 +1,27 @@
+Render this image. Do not redesign it.
+
+The input is an eye-level view of a 3D massing model of a street in the old town of Weimar, Germany. Turn it into a photorealistic architectural photograph by adding materials, windows, light and texture to the shapes that are already there.
+
+STRICT RULES - follow every one:
+1. Same camera: identical viewpoint, eye height, focal length, horizon line and framing. Do not zoom, crop, rotate, tilt or change the perspective.
+2. Same geometry: every building keeps its exact outline, silhouette, proportions, height and position. Every edge and corner stays where it is in the input. If you laid the result over the input, all building edges would line up.
+3. Do not add, remove, move, merge, split or reshape any building. Do not add roofs, storeys, towers or extensions that are not in the input.
+4. Only add surface detail inside the existing faces: facade materials, window openings, doors, frames, cornices, texture, light and shadow.
+
+WHICH BUILDING IS NEW - this is essential:
+- RED marks the ONE new building and only that. Everything red belongs to it: the red block raised above the street, the red columns and beams under it, the dark red band on its roof edge and the deep red box on its roof.
+- GREY marks EXISTING buildings. Every grey building is an old existing building (Bestand) and must look old. Never render a grey building as new or modern.
+- Red and grey are code colours only. Do not paint anything red.
+
+What each colour becomes:
+- grey buildings: historic Weimar Altbau from the 19th century: plastered facades in soft warm tones (cream, ochre, pale yellow, light grey), stone window surrounds, cornices, invented rows of tall vertical windows with white frames that fit their floors. Keep their walls and outlines exactly.
+- red raised block: the new contemporary building on stilts: light exposed concrete with large floor-to-ceiling windows in slim dark frames, invented across its two floors. It is the only building with a roof garden.
+- dark red band on its top edge: a slim metal parapet around the roof garden, with plants and small trees showing just above it.
+- deep red box on its roof: a small rooftop pavilion of warm timber and glass.
+- red columns and beams: slender exposed concrete columns and beams carrying the new building over the street.
+- blue stand-in shape on the street: a real car driving along the street underneath the raised building.
+- grey ground: a cobblestone street with narrow pavements.
+
+Light: bright, warm late afternoon in summer, low golden sun, clear blue sky with a few soft clouds.
+
+A few pedestrians for scale on the pavements, small enough that they cover no building edges. Vertical lines stay vertical.
